@@ -18,8 +18,10 @@ var (
 	StyleLine          = NewStyle("#3a3a3a", "", false)
 	StyleTag           = NewStyle("#d4d4d4", "#3a3a3a", false)
 	StyleTagEnd        = NewStyle("#3a3a3a", "#3a3a3a", false)
-	StylePricePositive = NewStyleFromGradient("#C6FF40", "#779929")
-	StylePriceNegative = NewStyleFromGradient("#FF7940", "#994926")
+	StylePricePositive func(float64) func(string) string
+	StylePriceNegative func(float64) func(string) string
+	StylePriceGreen    = NewStyleFromGradient("#C6FF40", "#779929")
+	StylePriceRed      = NewStyleFromGradient("#FF7940", "#994926")
 )
 
 func NewStyle(fg string, bg string, bold bool) func(string) string {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"ticker/internal/position"
+	"ticker/internal/ui/util"
 
 	"github.com/adrg/xdg"
 	"github.com/mitchellh/go-homedir"
@@ -23,6 +24,7 @@ type Config struct {
 	ExtraInfoFundamentals bool           `yaml:"show-fundamentals"`
 	ShowSummary           bool           `yaml:"show-summary"`
 	Proxy                 string         `yaml:"proxy"`
+	Redgrow               bool           `yaml:"redgrow"`
 }
 
 type Options struct {
@@ -62,6 +64,14 @@ func Validate(config *Config, fs afero.Fs, options Options, prevErr error) func(
 
 		*config = mergeConfig(*config, options)
 
+		// set grow color
+		if config.Redgrow {
+			util.StylePricePositive = util.StylePriceRed
+			util.StylePriceNegative = util.StylePriceGreen
+		} else {
+			util.StylePricePositive = util.StylePriceGreen
+			util.StylePriceNegative = util.StylePriceRed
+		}
 		return nil
 	}
 }
