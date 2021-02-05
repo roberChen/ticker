@@ -25,6 +25,7 @@ type Config struct {
 	ShowSummary           bool           `yaml:"show-summary"`
 	Proxy                 string         `yaml:"proxy"`
 	Redgrow               bool           `yaml:"redgrow"`
+	Sort                  string         `yaml:"sort"`
 }
 
 type Options struct {
@@ -35,6 +36,7 @@ type Options struct {
 	ExtraInfoFundamentals *bool
 	ShowSummary           *bool
 	Proxy                 *string
+	Sort                  *string
 }
 
 func Run(uiStartFn func() error) func(*cobra.Command, []string) {
@@ -106,6 +108,7 @@ func mergeConfig(config Config, options Options) Config {
 	config.ExtraInfoFundamentals = getBoolOption(*options.ExtraInfoFundamentals, config.ExtraInfoFundamentals)
 	config.ShowSummary = getBoolOption(*options.ShowSummary, config.ShowSummary)
 	config.Proxy = getProxy(*options.Proxy, config.Proxy)
+	config.Sort = getStringOption(*options.Sort, config.Sort)
 
 	return config
 }
@@ -172,4 +175,17 @@ func getBoolOption(cliValue bool, configValue bool) bool {
 	}
 
 	return false
+}
+
+func getStringOption(cliValue string, configValue string) string {
+
+	if cliValue != "" {
+		return cliValue
+	}
+
+	if configValue != "" {
+		return configValue
+	}
+
+	return ""
 }
