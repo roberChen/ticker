@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/achannarasappa/ticker/internal/position"
+	"github.com/achannarasappa/ticker/internal/ui/util"
 
 	"github.com/adrg/xdg"
 	"github.com/mitchellh/go-homedir"
