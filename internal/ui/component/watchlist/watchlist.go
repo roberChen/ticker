@@ -4,11 +4,12 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"ticker/internal/position"
-	"ticker/internal/quote"
-	. "ticker/internal/ui/util"
 
-	. "ticker/internal/ui/util/text"
+	"github.com/achannarasappa/ticker/internal/position"
+	"github.com/achannarasappa/ticker/internal/quote"
+	. "github.com/achannarasappa/ticker/internal/ui/util"
+
+	. "github.com/achannarasappa/ticker/internal/ui/util/text"
 
 	"github.com/novalagung/gubrak/v2"
 )
@@ -103,7 +104,7 @@ func item(q quote.Quote, p position.Position, width int) string {
 			},
 			Cell{
 				Width: 25,
-				Text:  valueChangeText(p.DayChange, p.DayChangePercent),
+				Text:  valueChangeText(p.TotalChange, p.TotalChangePercent),
 				Align: RightAlign,
 			},
 			Cell{

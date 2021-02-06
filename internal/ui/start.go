@@ -1,7 +1,7 @@
 package ui
 
 import (
-	"ticker/internal/cli"
+	"github.com/achannarasappa/ticker/internal/cli"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/go-resty/resty/v2"

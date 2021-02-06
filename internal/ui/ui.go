@@ -3,15 +3,16 @@ package ui
 import (
 	"fmt"
 	"strings"
-	"ticker/internal/cli"
-	"ticker/internal/position"
-	"ticker/internal/quote"
-	"ticker/internal/ui/component/summary"
-	"ticker/internal/ui/component/watchlist"
 	"time"
 
-	. "ticker/internal/ui/util"
-	. "ticker/internal/ui/util/text"
+	"github.com/achannarasappa/ticker/internal/cli"
+	"github.com/achannarasappa/ticker/internal/position"
+	"github.com/achannarasappa/ticker/internal/quote"
+	"github.com/achannarasappa/ticker/internal/ui/component/summary"
+	"github.com/achannarasappa/ticker/internal/ui/component/watchlist"
+
+	. "github.com/achannarasappa/ticker/internal/ui/util"
+	. "github.com/achannarasappa/ticker/internal/ui/util/text"
 
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
@@ -61,7 +62,7 @@ func NewModel(config cli.Config, client *resty.Client) Model {
 	return Model{
 		headerHeight:    getVerticalMargin(config),
 		ready:           false,
-		requestInterval: 3,
+		requestInterval: config.RefreshInterval,
 		getQuotes:       quote.GetQuotes(*client, symbols),
 		getPositions:    position.GetPositions(aggregatedLots),
 		watchlist:       watchlist.NewModel(config.Separate, config.ExtraInfoExchange, config.ExtraInfoFundamentals, config.Sort),
