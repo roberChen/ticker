@@ -3,6 +3,8 @@
 !cmd/*
 !internal
 !internal/**/*
+!test
+!test/**/*
 !docs
 !docs/*
 !main.go
@@ -10,6 +12,7 @@
 !LICENSE
 !go.mod
 !go.sum
+!Dockerfile
 !.gitignore
 !.goreleaser.yml
 !.github

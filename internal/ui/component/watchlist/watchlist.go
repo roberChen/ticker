@@ -5,33 +5,35 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/achannarasappa/ticker/internal/position"
-	"github.com/achannarasappa/ticker/internal/quote"
+	c "github.com/achannarasappa/ticker/internal/common"
+	. "github.com/achannarasappa/ticker/internal/position"
+	. "github.com/achannarasappa/ticker/internal/quote"
+	. "github.com/achannarasappa/ticker/internal/sorter"
 	. "github.com/achannarasappa/ticker/internal/ui/util"
 
 	. "github.com/achannarasappa/ticker/internal/ui/util/text"
-
-	"github.com/novalagung/gubrak/v2"
 )
 
 type Model struct {
 	Width                 int
-	Quotes                []quote.Quote
-	Positions             map[string]position.Position
+	Quotes                []Quote
+	Positions             map[string]Position
 	Separate              bool
 	ExtraInfoExchange     bool
 	ExtraInfoFundamentals bool
-	Sort                  string
+	Sorter                Sorter
+	Context               c.Context
 }
 
 // NewModel returns a model with default values.
-func NewModel(separate bool, extraInfoExchange bool, extraInfoFundamentals bool, sort string) Model {
+func NewModel(ctx c.Context) Model {
 	return Model{
 		Width:                 80,
-		Separate:              separate,
-		ExtraInfoExchange:     extraInfoExchange,
-		ExtraInfoFundamentals: extraInfoFundamentals,
-		Sort:                  sort,
+		Context:               ctx,
+		Separate:              ctx.Config.Separate,
+		ExtraInfoExchange:     ctx.Config.ExtraInfoExchange,
+		ExtraInfoFundamentals: ctx.Config.ExtraInfoFundamentals,
+		Sorter:                NewSorter(ctx.Config.Sort),
 	}
 }
 
@@ -41,7 +43,7 @@ func (m Model) View() string {
 		return fmt.Sprintf("Terminal window too narrow to render content\nResize to fix (%d/80)", m.Width)
 	}
 
-	quotes := sortQuotes(m.Quotes, m.Sort)
+	quotes := m.Sorter(m.Quotes, m.Positions)
 	items := make([]string, 0)
 	for _, quote := range quotes {
 		items = append(
@@ -49,15 +51,16 @@ func (m Model) View() string {
 			strings.Join(
 				[]string{
 					item(quote, m.Positions[quote.Symbol], m.Width),
+					extraInfoHoldings(m.Context.Config.ShowHoldings, quote, m.Positions[quote.Symbol], m.Width),
 					extraInfoFundamentals(m.ExtraInfoFundamentals, quote, m.Width),
-					extraInfoExchange(m.ExtraInfoExchange, quote, m.Width),
+					extraInfoExchange(m.ExtraInfoExchange, quote, m.Context.Config.Currency, m.Width),
 				},
 				"",
 			),
 		)
 	}
 
-	return strings.Join(items, separator(m.Separate, m.Width))
+	return strings.Join(items, separator(m.Separate, m.Width)) + "\n"
 }
 
 func separator(isSeparated bool, width int) string {
@@ -65,7 +68,7 @@ func separator(isSeparated bool, width int) string {
 		return "\n" + Line(
 			width,
 			Cell{
-				Text: StyleLine(strings.Repeat("⎯", width)),
+				Text: StyleLine(strings.Repeat("─", width)),
 			},
 		) + "\n"
 	}
@@ -73,7 +76,7 @@ func separator(isSeparated bool, width int) string {
 	return "\n"
 }
 
-func item(q quote.Quote, p position.Position, width int) string {
+func item(q Quote, p Position, width int) string {
 
 	return JoinLines(
 		Line(
@@ -93,7 +96,7 @@ func item(q quote.Quote, p position.Position, width int) string {
 			},
 			Cell{
 				Width: 25,
-				Text:  StyleNeutral(ConvertFloatToString(q.Price)),
+				Text:  StyleNeutral(ConvertFloatToString(q.Price, q.IsVariablePrecision)),
 				Align: RightAlign,
 			},
 		),
@@ -104,56 +107,116 @@ func item(q quote.Quote, p position.Position, width int) string {
 			},
 			Cell{
 				Width: 25,
-				Text:  valueChangeText(p.TotalChange, p.TotalChangePercent),
+				Text:  valueChangeText(p.TotalChange, p.TotalChangePercent, q.IsVariablePrecision),
 				Align: RightAlign,
 			},
 			Cell{
 				Width: 25,
-				Text:  quoteChangeText(q.Change, q.ChangePercent),
+				Text:  quoteChangeText(q.Change, q.ChangePercent, q.IsVariablePrecision),
 				Align: RightAlign,
 			},
 		),
 	)
 }
 
-func extraInfoExchange(show bool, q quote.Quote, width int) string {
+func extraInfoExchange(show bool, q Quote, targetCurrency string, width int) string {
 	if !show {
 		return ""
 	}
-	return "\n" + Line(
-		width,
-		Cell{
-			Text: tagText(q.Currency) + " " + tagText(exchangeDelayText(q.ExchangeDelay)) + " " + tagText(q.ExchangeName),
-		},
-	)
-}
 
-func extraInfoFundamentals(show bool, q quote.Quote, width int) string {
-	if !show {
-		return ""
+	currencyText := q.Currency
+
+	if targetCurrency != "" && targetCurrency != q.Currency {
+		currencyText = q.Currency + " → " + targetCurrency
 	}
 
 	return "\n" + Line(
 		width,
 		Cell{
-			Width: 25,
-			Text:  StyleNeutralFaded("Prev Close: ") + StyleNeutral(ConvertFloatToString(q.RegularMarketPreviousClose)),
-		},
-		Cell{
-			Width: 20,
-			Text:  StyleNeutralFaded("Open: ") + StyleNeutral(ConvertFloatToString(q.RegularMarketOpen)),
-		},
-		Cell{
-			Text: dayRangeText(q.RegularMarketDayRange),
+			Align: RightAlign,
+			Text:  tagText(currencyText) + " " + tagText(exchangeDelayText(q.ExchangeDelay)) + " " + tagText(q.ExchangeName),
 		},
 	)
 }
 
-func dayRangeText(dayRange string) string {
-	if len(dayRange) <= 0 {
+func extraInfoFundamentals(show bool, q Quote, width int) string {
+	if !show {
 		return ""
 	}
-	return StyleNeutralFaded("Day Range: ") + StyleNeutral(dayRange)
+
+	return "\n" + Line(
+		width,
+		Cell{
+			Text:  dayRangeText(q.PriceDayHigh, q.PriceDayLow, q.IsVariablePrecision),
+			Align: RightAlign,
+		},
+		Cell{
+			Width: 15,
+			Text:  StyleNeutralFaded("Prev Close: "),
+			Align: RightAlign,
+		},
+		Cell{
+			Width: 10,
+			Text:  StyleNeutral(ConvertFloatToString(q.PricePrevClose, q.IsVariablePrecision)),
+			Align: RightAlign,
+		},
+		Cell{
+			Width: 15,
+			Text:  StyleNeutralFaded("Open: "),
+			Align: RightAlign,
+		},
+		Cell{
+			Width: 10,
+			Text:  StyleNeutral(ConvertFloatToString(q.PriceOpen, q.IsVariablePrecision)),
+			Align: RightAlign,
+		},
+	)
+}
+
+func extraInfoHoldings(show bool, q Quote, p Position, width int) string {
+	if (p == Position{} || !show) {
+		return ""
+	}
+
+	return "\n" + Line(
+		width,
+		Cell{
+			Text:  StyleNeutralFaded("Weight: "),
+			Align: RightAlign,
+		},
+		Cell{
+			Width: 7,
+			Text:  StyleNeutral(ConvertFloatToString(p.Weight, q.IsVariablePrecision)) + "%",
+			Align: RightAlign,
+		},
+		Cell{
+			Width: 15,
+			Text:  StyleNeutralFaded("Avg. Cost: "),
+			Align: RightAlign,
+		},
+		Cell{
+			Width: 10,
+			Text:  StyleNeutral(ConvertFloatToString(p.AverageCost, q.IsVariablePrecision)),
+			Align: RightAlign,
+		},
+		Cell{
+			Width: 15,
+			Text:  StyleNeutralFaded("Quantity: "),
+			Align: RightAlign,
+		},
+		Cell{
+			Width: 10,
+			Text:  StyleNeutral(ConvertFloatToString(p.Quantity, q.IsVariablePrecision)),
+			Align: RightAlign,
+		},
+	)
+}
+
+func dayRangeText(high float64, low float64, isVariablePrecision bool) string {
+	if high == 0.0 || low == 0.0 {
+		return ""
+	}
+	return StyleNeutralFaded("Day Range: ") + StyleNeutral(ConvertFloatToString(low, isVariablePrecision)+" - "+ConvertFloatToString(high, isVariablePrecision))
 }
 
 func exchangeDelayText(delay float64) string {
@@ -168,77 +231,34 @@ func tagText(text string) string {
 	return StyleTagEnd(" ") + StyleTag(text) + StyleTagEnd(" ")
 }
 
-func marketStateText(q quote.Quote) string {
+func marketStateText(q Quote) string {
 	if q.IsRegularTradingSession {
-		return StyleNeutralFaded(" ⦿  ")
+		return StyleNeutralFaded(" ●  ")
 	}
 
 	if !q.IsRegularTradingSession && q.IsActive {
-		return StyleNeutralFaded(" ⦾  ")
+		return StyleNeutralFaded(" ○  ")
 	}
 
 	return ""
 }
 
-func valueChangeText(change float64, changePercent float64) string {
+func valueChangeText(change float64, changePercent float64, isVariablePrecision bool) string {
 	if change == 0.0 {
 		return ""
 	}
 
-	return quoteChangeText(change, changePercent)
+	return quoteChangeText(change, changePercent, isVariablePrecision)
 }
 
-func quoteChangeText(change float64, changePercent float64) string {
+func quoteChangeText(change float64, changePercent float64, isVariablePrecision bool) string {
 	if change == 0.0 {
-		return StyleNeutralFaded("  " + ConvertFloatToString(change) + "  (" + ConvertFloatToString(changePercent) + "%)")
+		return StyleNeutralFaded("  " + ConvertFloatToString(change, isVariablePrecision) + "  (" + ConvertFloatToString(changePercent, false) + "%)")
 	}
 
 	if change > 0.0 {
-		return StylePricePositive(changePercent)("↑ " + ConvertFloatToString(change) + "  (" + ConvertFloatToString(changePercent) + "%)")
+		return StylePricePositive(changePercent)("↑ " + ConvertFloatToString(change, isVariablePrecision) + "  (" + ConvertFloatToString(changePercent, false) + "%)")
 	}
 
-	return StylePriceNegative(changePercent)("↓ " + ConvertFloatToString(change) + " (" + ConvertFloatToString(changePercent) + "%)")
-}
-
-// Sort by `sort` parameter (Symbol or Change Percent).
-// Keep all inactive quotes at the end
-func sortQuotes(q []quote.Quote, sort string) []quote.Quote {
-	if len(q) <= 0 {
-		return q
-	}
-
-	activeQuotes, inactiveQuotes, _ := gubrak.
-		From(q).
-		Partition(func(v quote.Quote) bool {
-			return v.IsActive
-		}).
-		ResultAndError()
-
-	quotesToShow := gubrak.
-		From(activeQuotes)
-
-	// Append the orderBy functionality
-	appendOrderBy(quotesToShow, sort, inactiveQuotes)
-
-	// Get the result from quotes
-	concatQuotes := quotesToShow.
-		Result()
-
-	return (concatQuotes).([]quote.Quote)
-}
-
-func appendOrderBy(quotes gubrak.IChainable, sort string, inactiveQuotes interface{}) {
-
-	switch strings.ToLower(sort) {
-	case "alpha":
-		quotes.Concat(inactiveQuotes)
-		quotes.OrderBy(func(v quote.Quote) string {
-			return v.Symbol
-		})
-	default:
-		quotes.OrderBy(func(v quote.Quote) float64 {
-			return v.ChangePercent
-		}, false)
-		quotes.Concat(inactiveQuotes)
-	}
+	return StylePriceNegative(changePercent)("↓ " + ConvertFloatToString(change, isVariablePrecision) + " (" + ConvertFloatToString(changePercent, false) + "%)")
 }
